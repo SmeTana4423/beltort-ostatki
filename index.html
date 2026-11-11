@@ -115,7 +115,7 @@
       </svg></a>
     <div class="kicker">Для продавцов</div>
     <h1>Остатки на конец дня</h1>
-    <p class="sub">Заполните перед закрытием смены. Если товара нет — поставьте 0.</p>
+    <p class="sub">Заполните перед закрытием смены. Укажите только то, что осталось, — пустое поле считается за 0.</p>
   </div>
 </header>
 <main>
@@ -237,7 +237,7 @@ function render(cfg) {
     row.innerHTML = '<label class="name" for="q' + i + '"></label>' +
       '<div class="step">' +
       '<button type="button" class="minus" aria-label="Уменьшить">−</button>' +
-      '<input id="q' + i + '" type="text" inputmode="decimal" autocomplete="off" placeholder="—">' +
+      '<input id="q' + i + '" type="text" inputmode="decimal" autocomplete="off" placeholder="0">' +
       '<button type="button" class="plus" aria-label="Увеличить">+</button>' +
       '</div><span class="unit"></span>';
     row.querySelector('.name').textContent = p.name;
@@ -270,8 +270,8 @@ function render(cfg) {
 }
 
 function updateProgress() {
-  const filled = products.filter((_, i) => $('q' + i).value !== '').length;
-  $('progress').innerHTML = 'Заполнено<br><b>' + filled + '</b> из ' + products.length;
+  const filled = products.filter((_, i) => Number($('q' + i).value.replace(',', '.')) > 0).length;
+  $('progress').innerHTML = 'В наличии<br><b>' + filled + '</b> из ' + products.length;
 }
 
 $('form').addEventListener('submit', async e => {
@@ -284,18 +284,17 @@ $('form').addEventListener('submit', async e => {
   if (!payload.store) return showError('Выберите магазин.');
   if (!payload.seller) return showError('Укажите своё имя.');
 
-  const empty = [], bad = [];
+  // Пустое поле = товара нет (0). В таблицу уходят все позиции.
+  const bad = [];
   products.forEach((p, i) => {
-    const v = $('q' + i).value.trim().replace(/\s/g, '').replace(',', '.');
-    if (v === '') { empty.push(p.name); return; }
+    const v = $('q' + i).value.trim().replace(/\s/g, '').replace(',', '.') || '0';
     const n = Number(v);
     if (!/^\d+(\.\d+)?$/.test(v) || !isFinite(n)) { bad.push(p.name); return; }
     payload.items.push({ name: p.name, qty: n });
   });
   if (bad.length) return showError('Неверное число у товаров: ' + bad.join(', ') + '. Пишите только цифры, например 3 или 1,5.');
-  if (payload.items.length === 0) return showError('Не указан ни один остаток.');
-  if (empty.length && !confirm('Не заполнено товаров: ' + empty.length + ' (' + empty.slice(0, 5).join(', ') +
-      (empty.length > 5 ? '…' : '') + ').\nОтправить без них?')) return;
+  if (payload.items.every(it => it.qty === 0) &&
+      !confirm('Все остатки — 0 (ничего не осталось). Отправить так?')) return;
 
   store.set('store', payload.store);
   store.set('seller', payload.seller);
