@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Остатки на конец дня</title>
+<style>
+  :root {
+    --bg: #f4f5f7; --card: #fff; --text: #1d2330; --muted: #6b7280;
+    --line: #e3e6eb; --accent: #2563eb; --accent-text: #fff;
+    --ok: #15803d; --err: #b91c1c; --filled: #eef4ff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151b; --card: #1b1f27; --text: #e8eaee; --muted: #9aa1ad;
+      --line: #2c323d; --accent: #4f8cff; --accent-text: #fff;
+      --ok: #4ade80; --err: #f87171; --filled: #1d2a44;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 560px; margin: 0 auto; padding: 16px 16px 120px; }
+  h1 { font-size: 22px; margin: 8px 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 16px; font-size: 14px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin-bottom: 12px; }
+  label.f { display: block; font-size: 14px; color: var(--muted); margin: 0 0 4px; }
+  .field + .field { margin-top: 12px; }
+  input, select, textarea { width: 100%; font: inherit; color: var(--text); background: var(--bg);
+    border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+  input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); border-color: transparent; }
+  textarea { min-height: 70px; resize: vertical; }
+  .search { margin-bottom: 8px; }
+  .item { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); }
+  .item:first-child { border-top: 0; }
+  .item .name { flex: 1; min-width: 0; }
+  .item { gap: 8px; }
+  .item .unit { color: var(--muted); font-size: 13px; width: 22px; }
+  .item input { width: 56px; text-align: center; flex: none; padding: 10px 4px; }
+  .step { display: flex; align-items: center; gap: 4px; flex: none; }
+  .step button { width: 40px; height: 42px; padding: 0; font-size: 22px; line-height: 1; border-radius: 8px;
+    background: var(--bg); color: var(--text); border: 1px solid var(--line); touch-action: manipulation;
+    -webkit-user-select: none; user-select: none; }
+  .step button:active { background: var(--filled); }
+  .item.filled input { background: var(--filled); }
+  .progress { font-size: 14px; color: var(--muted); }
+  .bar { position: fixed; left: 0; right: 0; bottom: 0; background: var(--card); border-top: 1px solid var(--line); padding: 12px 16px; }
+  .bar .in { max-width: 560px; margin: 0 auto; display: flex; gap: 12px; align-items: center; }
+  button { font: inherit; font-weight: 600; border: 0; border-radius: 10px; padding: 12px 18px; cursor: pointer;
+    background: var(--accent); color: var(--accent-text); }
+  button:disabled { opacity: .6; cursor: default; }
+  .bar button { flex: 1; }
+  .msg { padding: 10px 12px; border-radius: 8px; margin-bottom: 12px; font-size: 15px; }
+  .msg.err { color: var(--err); border: 1px solid var(--err); }
+  .done { text-align: center; padding: 40px 16px; }
+  .done .big { font-size: 48px; color: var(--ok); }
+  .info div + div { margin-top: 4px; }
+  .info .f { color: var(--muted); font-size: 14px; display: inline-block; width: 72px; }
+  .hidden { display: none !important; }
+  .demo { font-size: 13px; color: var(--muted); border: 1px dashed var(--line); padding: 8px; border-radius: 8px; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Остатки на конец дня</h1>
+  <p class="sub">Заполните перед закрытием смены. Если товара нет — поставьте 0.</p>
+
+  <div id="demo" class="demo hidden">Демо-режим: адрес скрипта не указан, данные никуда не отправляются.</div>
+  <div id="error" class="msg err hidden"></div>
+  <div id="loading" class="card">Загрузка списка товаров…</div>
+
+  <form id="form" class="hidden" novalidate>
+    <div class="card">
+      <div class="field info">
+        <div><span class="f">Дата</span> <b id="date"></b></div>
+        <div id="storeOne" class="hidden"><span class="f">Магазин</span> <b id="storeOneName"></b></div>
+      </div>
+      <div class="field" id="storeField">
+        <label class="f" for="store">Магазин</label>
+        <select id="store" required><option value="">— выберите —</option></select>
+      </div>
+      <div class="field">
+        <label class="f" for="seller">Ваше имя</label>
+        <input id="seller" autocomplete="name" required placeholder="Например, Анна">
+      </div>
+    </div>
+
+    <div class="card">
+      <input id="search" class="search" type="search" placeholder="Поиск товара">
+      <div id="items"></div>
+    </div>
+
+    <div class="card">
+      <label class="f" for="comment">Комментарий (необязательно)</label>
+      <textarea id="comment" placeholder="Что закончилось, что нужно привезти, брак…"></textarea>
+    </div>
+  </form>
+
+  <div id="done" class="card done hidden">
+    <div class="big">✓</div>
+    <h2>Отчёт отправлен</h2>
+    <p class="sub" id="doneText"></p>
+    <button type="button" id="again">Отправить ещё раз</button>
+  </div>
+</main>
+
+<div class="bar hidden" id="bar">
+  <div class="in">
+    <span class="progress" id="progress"></span>
+    <button type="submit" form="form" id="send">Отправить</button>
+  </div>
+</div>
+
+<script>
+// ===== НАСТРОЙКА: вставьте сюда адрес веб-приложения Apps Script (…/exec) =====
+const SCRIPT_URL = '';
+// ============================================================================
+
+const params = new URLSearchParams(location.search);
+const KEY = params.get('key') || '';
+const PRESET_STORE = params.get('store') || '';
+const $ = id => document.getElementById(id);
+const store = {
+  get(k) { try { return localStorage.getItem('ostatki_' + k) || ''; } catch (e) { return ''; } },
+  set(k, v) { try { localStorage.setItem('ostatki_' + k, v); } catch (e) {} }
+};
+let products = [];
+
+function showError(text) { $('error').textContent = text; $('error').classList.remove('hidden'); window.scrollTo(0, 0); }
+function hideError() { $('error').classList.add('hidden'); }
+// Для демо-режима; в рабочем режиме дату ставит сервер (ночью до 5:00 — вчерашняя).
+function demoDate() {
+  const d = new Date(); if (d.getHours() < 5) d.setDate(d.getDate() - 1);
+  return d.toLocaleDateString('ru-RU');
+}
+
+async function loadConfig() {
+  if (!SCRIPT_URL) {
+    $('demo').classList.remove('hidden');
+    return { ok: true, date: demoDate(), stores: ['микрорайон Центральный, улица Мира, 30'],
+      products: ['Айсберг', 'Анна Павлова', 'Арабика', 'Белый рай', 'Бисквитно-кремовый', 'Графские развалины',
+        'Идеал', 'Йогуртовый крохотный', 'Йогуртовый средний', 'Капкейк "Красный бархат"',
+        'Кейк-попс 1шт в ассортименте.', 'Киевский', 'Красный бархат', 'Макаронс 1 шт в ассортименте.',
+        'Медовое облако', 'Медовый крохотный', 'Медовый небольшой', 'Медовый средний', 'Медовый большой',
+        'Молочная девочка крохотный', 'Молочная девочка небольшой', 'Молочная девочка средний',
+        'Молочная девочка большой', 'Морковный средний', 'Морковный большой', 'Наполеон крохотный',
+        'Наполеон средний', 'Отелло крохотный', 'Отелло небольшой', 'Отелло большой', 'Панчо', 'Пеле крохотный',
+        'Пеле небольшой', 'Пеле средний', 'Пеле большой', 'Пеле огромный',
+        'Песочные корзинки с безе 1 шт в ассортименте.', 'Песочные корзинки с масляным кремом 1 шт в ассортименте.',
+        'Пикантный', 'Пирожное "Анна Павлова"', 'Пирожное "Картошка"', 'Пирожное "Птичье молоко"',
+        'Птичье молоко крохотный', 'Птичье молоко небольшой', 'Птичье молоко средний', 'Птичье молоко большой',
+        'Птичье молоко огромный', 'Пьяная вишня небольшой', 'Пьяная вишня средний', 'Пьяная вишня большой',
+        'Рапсодия', 'Сникерс средний', 'Сникерс большой', 'Три шоколада', 'Трубочка с белковым кремом',
+        'Фантазия крохотный', 'Фантазия небольшой', 'Фантазия средний', 'Фантазия большой', 'Фантазия огромный',
+        'Фея небольшой', 'Фея средний', 'Фисташка-Малина', 'Фруктелла', 'Черная роза', 'Экзотика',
+        'Эклер ванильный', 'Эклер Соленая карамель', 'Эклер шоколадный'].map(n => ({ name: n, unit: 'шт' })) };
+  }
+  const r = await fetch(SCRIPT_URL + '?key=' + encodeURIComponent(KEY));
+  return r.json();
+}
+
+function render(cfg) {
+  const sel = $('store');
+  cfg.stores.forEach(s => sel.add(new Option(s, s)));
+  const wanted = PRESET_STORE || store.get('store');
+  if (cfg.stores.includes(wanted)) sel.value = wanted;
+  if (cfg.stores.length === 1) {
+    sel.value = cfg.stores[0];
+    $('storeField').classList.add('hidden');
+    $('storeOneName').textContent = cfg.stores[0];
+    $('storeOne').classList.remove('hidden');
+  }
+  $('seller').value = store.get('seller');
+  $('date').textContent = cfg.date || '';
+
+  products = cfg.products;
+  const box = $('items');
+  products.forEach((p, i) => {
+    const row = document.createElement('div');
+    row.className = 'item';
+    row.dataset.name = p.name.toLowerCase();
+    row.innerHTML = '<label class="name" for="q' + i + '"></label>' +
+      '<div class="step">' +
+      '<button type="button" class="minus" aria-label="Уменьшить">−</button>' +
+      '<input id="q' + i + '" type="text" inputmode="decimal" autocomplete="off" placeholder="—">' +
+      '<button type="button" class="plus" aria-label="Увеличить">+</button>' +
+      '</div><span class="unit"></span>';
+    row.querySelector('.name').textContent = p.name;
+    row.querySelector('.unit').textContent = p.unit;
+    const inp = row.querySelector('input');
+    inp.addEventListener('input', () => { row.classList.toggle('filled', inp.value !== ''); updateProgress(); });
+    const step = delta => {
+      const cur = Number(inp.value.trim().replace(/\s/g, '').replace(',', '.'));
+      const base = inp.value.trim() === '' || !isFinite(cur) ? 0 : cur;
+      const next = inp.value.trim() === '' && delta < 0 ? 0 : Math.max(0, Math.round((base + delta) * 1000) / 1000);
+      inp.value = String(next).replace('.', ',');
+      inp.dispatchEvent(new Event('input'));
+    };
+    row.querySelector('.minus').addEventListener('click', () => step(-1));
+    row.querySelector('.plus').addEventListener('click', () => step(1));
+    inp.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); const next = $('q' + (i + 1)); if (next) next.focus(); else inp.blur(); }
+    });
+    box.appendChild(row);
+  });
+  $('search').addEventListener('input', e => {
+    const q = e.target.value.trim().toLowerCase();
+    box.querySelectorAll('.item').forEach(r => r.classList.toggle('hidden', q && !r.dataset.name.includes(q)));
+  });
+
+  $('loading').classList.add('hidden');
+  $('form').classList.remove('hidden');
+  $('bar').classList.remove('hidden');
+  updateProgress();
+}
+
+function updateProgress() {
+  const filled = products.filter((_, i) => $('q' + i).value !== '').length;
+  $('progress').textContent = 'Заполнено ' + filled + ' из ' + products.length;
+}
+
+$('form').addEventListener('submit', async e => {
+  e.preventDefault();
+  hideError();
+  const payload = {
+    key: KEY, store: $('store').value, seller: $('seller').value.trim(),
+    comment: $('comment').value.trim(), items: []
+  };
+  if (!payload.store) return showError('Выберите магазин.');
+  if (!payload.seller) return showError('Укажите своё имя.');
+
+  const empty = [], bad = [];
+  products.forEach((p, i) => {
+    const v = $('q' + i).value.trim().replace(/\s/g, '').replace(',', '.');
+    if (v === '') { empty.push(p.name); return; }
+    const n = Number(v);
+    if (!/^\d+(\.\d+)?$/.test(v) || !isFinite(n)) { bad.push(p.name); return; }
+    payload.items.push({ name: p.name, qty: n });
+  });
+  if (bad.length) return showError('Неверное число у товаров: ' + bad.join(', ') + '. Пишите только цифры, например 3 или 1,5.');
+  if (payload.items.length === 0) return showError('Не указан ни один остаток.');
+  if (empty.length && !confirm('Не заполнено товаров: ' + empty.length + ' (' + empty.slice(0, 5).join(', ') +
+      (empty.length > 5 ? '…' : '') + ').\nОтправить без них?')) return;
+
+  store.set('store', payload.store);
+  store.set('seller', payload.seller);
+  $('send').disabled = true; $('send').textContent = 'Отправка…';
+  try {
+    let res;
+    if (!SCRIPT_URL) { await new Promise(r => setTimeout(r, 500)); res = { ok: true, saved: payload.items.length, date: demoDate() }; }
+    else {
+      const r = await fetch(SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload) });
+      res = await r.json();
+    }
+    if (!res.ok) throw new Error(res.error || 'Ошибка сервера');
+    $('doneText').textContent = payload.store + ', ' + res.date +
+      '. Позиций: ' + res.saved + '. Спасибо!';
+    $('form').classList.add('hidden'); $('bar').classList.add('hidden'); $('done').classList.remove('hidden');
+    window.scrollTo(0, 0);
+  } catch (err) {
+    showError('Не отправилось: ' + err.message + '. Проверьте интернет и нажмите «Отправить» ещё раз — введённые данные сохранены на странице.');
+  } finally {
+    $('send').disabled = false; $('send').textContent = 'Отправить';
+  }
+});
+
+$('again').addEventListener('click', () => {
+  $('done').classList.add('hidden'); $('form').classList.remove('hidden'); $('bar').classList.remove('hidden');
+});
+
+loadConfig()
+  .then(cfg => { if (!cfg.ok) throw new Error(cfg.error); render(cfg); })
+  .catch(err => { $('loading').classList.add('hidden'); showError('Не удалось загрузить форму: ' + err.message); });
+</script>
+</body>
+</html>
