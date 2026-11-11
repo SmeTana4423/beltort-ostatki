@@ -135,7 +135,7 @@
       </div>
       <div class="field">
         <label class="f" for="seller">Ваше имя</label>
-        <input id="seller" autocomplete="name" required>
+        <input id="seller" autocomplete="off" required>
       </div>
     </div>
 
@@ -225,7 +225,7 @@ function render(cfg) {
     $('storeOneName').textContent = cfg.stores[0];
     document.querySelectorAll('.storeOne').forEach(el => el.classList.remove('hidden'));
   }
-  $('seller').value = store.get('seller');
+  store.set('seller', ''); // имя не запоминаем: телефон может быть общий; стираем сохранённое ранее
   $('date').textContent = cfg.date || '';
 
   products = cfg.products;
@@ -297,7 +297,6 @@ $('form').addEventListener('submit', async e => {
       !confirm('Все остатки — 0 (ничего не осталось). Отправить так?')) return;
 
   store.set('store', payload.store);
-  store.set('seller', payload.seller);
   $('send').disabled = true; $('send').textContent = 'Отправка…';
   try {
     let res;
